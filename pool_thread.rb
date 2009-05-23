@@ -1,84 +1,43 @@
-#require 'java'
+require 'java'
 
 class PoolThread
 
-    def initialize 
+    def initialize (commands, simultaneously=1)
         @pool = []
-        @finished = []
-        @waiting = []
-        (1..6).each { @waiting << "firefox" }
+        @waiting = commands
+        (1..simultaneously).each { new_thread }
     end
     
-    def create(num=1)
-        (1..num).each { new_thread }
-    end
-
     def new_thread
-        @pool << Thread.new do
+        @pool << Thread.new do |t|
             Thread.stop
-            key = fast_token
-            cmd = Thread.current[:call].to_s
-            puts "#{cmd} - [#{key}]"
-
-            thread = Thread.current
-
-            out = system cmd
-
-            run_pool thread
-        end    
+            system Thread.current[:call].to_s
+        end
     end
     
-    def start_process
+    def run_pool
+    
         @pool.each do |thread| 
-            if (thread.status == "sleep" and @waiting.length > 0)
+            waiting = @waiting.length > 0
+
+            if (thread.status == "sleep" and waiting)
                 obj = @waiting[-1]
-                @waiting.delete(obj)
+                pos = @waiting.length - 1
+                @waiting.delete_at pos
                 thread[:call] = obj
                 thread.run
-                thread.join
+                
+            elsif ((thread.status == nil or thread.status == false) and waiting)
+                thread.kill
+                @pool.delete(thread)
+                new_thread
             end
         end
-                
-        @finished.each { |thread| Thread.kill thread }
-        @finished.clear()
-    end
-    
-    def run_pool( thread )
-        @pool.delete(thread)
-        @finished.push thread
-        new_thread if @waiting.length > 0
-        start_process  if @waiting.length > 0
-    end
-    
-    def is_any_running?
-        any_running = false
-        @pool.each { |thread| any_running = true if thread.status == "run" }
-    end
 
-    def pool
-        @pool
+        
+        Thread.new { sleep 0.1; run_pool }.join if (@waiting.length > 0)
+        
     end
     
-    def finished
-    	@finished
-    end
-
-    def fast_token
-      values = [
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x0010000),
-        rand(0x1000000),
-        rand(0x1000000),
-      ]
-      "%04x%04x%04x%04x%04x%06x%06x" % values
-    end
 
 end
-
-pool = PoolThread.new
-pool.create 3
-pool.start_process
-
