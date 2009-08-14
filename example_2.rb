@@ -1,4 +1,5 @@
 require 'java'
+require 'rubygems'
 require 'pool_thread'
 
 commands = []
